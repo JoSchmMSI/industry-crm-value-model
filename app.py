@@ -23,8 +23,8 @@ def m(x, sign=False):
 
 # ---------------------------------------------------------------- header
 st.title("Industry CRM Value Model")
-st.caption("From CRM KPIs to the P&L (profit and loss), for asset-heavy industries. "
-           "Hypothetical example company; an illustrative showcase, not a financial forecast.")
+st.caption("Value driver model linking CRM KPIs to EBIT, cash flow and payback in industries. "
+           "All results are indicative and non-binding.")
 
 # ---------------------------------------------------------------- sidebar: example company
 with st.sidebar:
