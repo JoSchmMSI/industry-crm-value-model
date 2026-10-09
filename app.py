@@ -114,7 +114,7 @@ r = compute(Inputs(company=company, levers=levers, ai=ai, adoption=adoption / 10
 
 # ---------------------------------------------------------------- results
 st.divider()
-st.subheader("Result for the CFO")
+st.subheader("Result")
 k1, k2, k3, k4 = st.columns(4)
 k1.metric("Net EBIT run-rate", m(r["net_runrate"], sign=True),
           help="Full run-rate (year 3) after adoption, minus CRM and AI run costs. One-time cost is in payback.",
