@@ -41,6 +41,12 @@ AI_USE_CASES = {
         "note": "Drafts quotes from product data and past quotes; seller approves"},
     "Failure alerts from machine data": {"type": "Predictive", "effects": {"ftf": 1.0, "churn": -0.5}, "run_cost": 50_000,
         "note": "Alerts before failure; parts prepared before the visit; protects uptime contracts"},
+    "Churn risk model": {"type": "Predictive", "effects": {"churn": -0.8}, "run_cost": 60_000,
+        "note": "Flags contracts at risk before renewal from case, usage and payment history"},
+    "Price guidance in quoting": {"type": "Predictive", "effects": {"price": -0.3}, "run_cost": 70_000,
+        "note": "Suggests a price corridor per deal from won and lost quotes; approval above the limit"},
+    "Billing anomaly check": {"type": "Predictive", "effects": {"leak": -0.5, "dso": -2.0}, "run_cost": 50_000,
+        "note": "Checks work orders against contracts and invoices before sending; fewer disputes"},
     "Case triage and summaries": {"type": "Generative", "effects": {}, "run_cost": 40_000, "capacity_minutes": 10,
         "note": "Routes and summarizes cases; frees agent time (capacity, not EBIT)"},
 }
