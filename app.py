@@ -22,9 +22,18 @@ def m(x, sign=False):
 
 
 # ---------------------------------------------------------------- header
-st.title("Industry CRM Value Model")
-st.caption("Value driver model linking CRM KPIs to EBIT, cash flow and payback in industries. "
-           "All results are indicative and non-binding.")
+st.markdown(
+    '<div style="font-size:1.35rem;font-weight:800;color:#0F2942;'
+    'letter-spacing:-0.01em;margin-bottom:2px;">📈 Industry CRM Value Model</div>'
+    '<div style="font-size:0.72rem;color:#9CA3AF;margin-bottom:4px;">'
+    '© 2026 Joscha Schmidt &nbsp;·&nbsp; Proprietary &amp; Confidential &nbsp;·&nbsp; All rights reserved'
+    '</div>'
+    '<div style="font-size:0.82rem;color:#64748B;margin-bottom:18px;">'
+    'Value driver model linking CRM KPIs to EBIT, cash flow and payback in industries. '
+    'All results are indicative and non-binding.'
+    '</div>',
+    unsafe_allow_html=True,
+)
 
 # ---------------------------------------------------------------- sidebar: example company
 with st.sidebar:
