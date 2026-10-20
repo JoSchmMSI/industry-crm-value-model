@@ -444,29 +444,154 @@ elif not shortlisted_cases:
     st.info("No use cases are in the 'Start here' or 'Quick win' quadrants yet. "
             "Adjust feasibility scores or add more use cases in Section ② to build a shortlist.", icon="ℹ️")
 else:
-    st.caption(
-        f"Tracking {len(shortlisted_cases)} shortlisted use case(s) from Section ②. "
-        "Tick 'Piloted' for any use case you have started. Answer the four questions to place it on the adoption ladder."
-    )
+    # --- Stage definitions (used throughout) ---
+    stage_labels = {4: "Redesigned", 3: "Embedded", 2: "Used", 1: "Tried"}
+    stage_descriptions = {
+        4: "Redesigned with the people who do the work, used every time and the value is proven.",
+        3: "The standard way of working, with an owner and early measured results.",
+        2: "Used regularly by part of the team, but the result is not yet measured or owned.",
+        1: "People have access and have tried it. The work itself has not changed.",
+    }
+    stage_colors = {4: TEAL, 3: PURPLE, 2: AMBER, 1: GRAY}
 
-    # --- State: piloted checkbox and question answers ---
+    # --- Collect piloted state and answers FIRST (needed for chips + table) ---
     piloted_state = {}
     answers_state = {}
+    for uc_name in shortlisted_cases:
+        piloted_key = f"piloted_{uc_name}"
+        # Render checkboxes here so state is captured; will display them again in detail section
+        piloted_state[uc_name] = st.session_state.get(piloted_key, False)
+        answers_state[uc_name] = {}
 
-    left_col, right_col = st.columns([1.1, 0.9])
+    # We need to render widgets to capture state — use a hidden pass via session_state
+    # Pre-populate answers from session_state
+    for uc_name in shortlisted_cases:
+        uc_answers = {}
+        for q in ADOPTION_QUESTIONS:
+            ans_key = f"ans_{uc_name}_{q['key']}"
+            uc_answers[q["key"]] = st.session_state.get(ans_key, 0)
+        answers_state[uc_name] = uc_answers if piloted_state[uc_name] else {}
 
-    with left_col:
-        st.markdown("**Four questions per use case**")
-        st.caption("Licence and login counts tell you whether people tried a tool. "
-                   "These four questions tell you whether the work changed.")
+    # Compute stages
+    stage_counts = {4: 0, 3: 0, 2: 0, 1: 0}
+    uc_stages = {}
+    for uc_name in shortlisted_cases:
+        if piloted_state.get(uc_name, False):
+            stage_num, stage_label = adoption_stage(answers_state.get(uc_name, {}))
+        else:
+            stage_num, stage_label = 0, "Not started"
+        uc_stages[uc_name] = (stage_num, stage_label)
+        if stage_num > 0:
+            stage_counts[stage_num] += 1
 
-        for uc_name in shortlisted_cases:
-            piloted_key = f"piloted_{uc_name}"
-            piloted = st.checkbox(f"**{uc_name}**  — Piloted", key=piloted_key)
+    # ── 1. SUMMARY CHIPS ──────────────────────────────────────────
+    chips_html = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">'
+    for sn in [4, 3, 2, 1]:
+        color = stage_colors[sn]
+        label = stage_labels[sn]
+        count = stage_counts[sn]
+        chips_html += (
+            f'<div style="display:inline-flex;align-items:center;gap:6px;'
+            f'background:{color}18;border:1px solid {color}55;border-radius:20px;'
+            f'padding:4px 12px;">'
+            f'<span style="width:8px;height:8px;border-radius:50%;background:{color};display:inline-block;"></span>'
+            f'<span style="font-size:0.82rem;font-weight:700;color:{color};">{count}</span>'
+            f'<span style="font-size:0.82rem;color:#64748B;">{label}</span>'
+            f'</div>'
+        )
+    chips_html += '</div>'
+    st.markdown(chips_html, unsafe_allow_html=True)
+
+    # ── 2. LADDER (left) + STEERING TABLE (right) ─────────────────
+    ladder_col, table_col = st.columns([1, 1.4])
+
+    with ladder_col:
+        st.markdown("**Adoption ladder**")
+        st.caption("Four stages of real adoption — from access to measurable change.")
+        for sn in [4, 3, 2, 1]:
+            count = stage_counts[sn]
+            label = stage_labels[sn]
+            desc = stage_descriptions[sn]
+            color = stage_colors[sn]
+            # Highlight the card if any use cases are at this stage
+            bg = f"{color}12" if count > 0 else "#FAFAFA"
+            border_width = "5px" if count > 0 else "3px"
+            count_label = f"{count} use case{'s' if count != 1 else ''}"
+            st.markdown(
+                f'<div style="border-left:{border_width} solid {color};padding:10px 14px;'
+                f'margin-bottom:8px;background:{bg};border-radius:4px;">'
+                f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+                f'<span style="font-size:0.75rem;font-weight:700;color:{color};'
+                f'text-transform:uppercase;letter-spacing:0.05em;">{sn} &nbsp; {label}</span>'
+                f'<span style="font-size:0.78rem;font-weight:{"700" if count > 0 else "400"};'
+                f'color:{color if count > 0 else GRAY};">{count_label}</span>'
+                f'</div>'
+                f'<div style="font-size:0.83rem;color:#64748B;margin-top:3px;">{desc}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    with table_col:
+        st.markdown("**Steering committee view**")
+        if not any(piloted_state.values()):
+            st.caption("Tick 'Piloted' on a use case below to start tracking it.")
+        else:
+            # Next action per stage
+            next_actions = {
+                4: "Document and scale",
+                3: "Redesign process with the team",
+                2: "Set baseline, assign owner",
+                1: "Move to consistent use",
+            }
+            # Render as styled HTML cards (one per piloted use case)
+            sc_lines_export = ["Adoption Tracker — Steering Committee View", ""]
+            for uc_name in shortlisted_cases:
+                if not piloted_state.get(uc_name, False):
+                    continue
+                sn, sl = uc_stages[uc_name]
+                ebit_val = r["ai_ebit_per_case"].get(uc_name, 0.0)
+                color = stage_colors.get(sn, GRAY)
+                label = stage_labels.get(sn, "Not started")
+                action = next_actions.get(sn, "—")
+                ebit_str = m(ebit_val)
+
+                st.markdown(
+                    f'<div style="border-left:4px solid {color};padding:10px 14px;'
+                    f'margin-bottom:8px;background:#FAFAFA;border-radius:4px;">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+                    f'<span style="font-size:0.88rem;font-weight:600;color:#0F2942;">{uc_name}</span>'
+                    f'<span style="font-size:1rem;font-weight:700;color:{color};white-space:nowrap;margin-left:12px;">{ebit_str}</span>'
+                    f'</div>'
+                    f'<div style="display:flex;align-items:center;gap:8px;margin-top:5px;">'
+                    f'<span style="font-size:0.75rem;font-weight:700;color:{color};background:{color}18;'
+                    f'border-radius:12px;padding:2px 8px;text-transform:uppercase;letter-spacing:0.04em;">'
+                    f'{sn} · {label}</span>'
+                    f'<span style="font-size:0.78rem;color:#64748B;">→ {action}</span>'
+                    f'</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                sc_lines_export.append(f"• {uc_name} | {sn} · {label} | {ebit_str} | Next: {action}")
+
+            sc_text = "\n".join(sc_lines_export)
+            st.download_button("⬇ Download summary", sc_text,
+                               file_name="adoption_summary.txt", mime="text/plain")
+
+    # ── 3. PER-USE-CASE DETAIL (collapsed expanders) ──────────────
+    st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
+    st.markdown("**Use case detail — four questions**")
+    st.caption("Licence and login counts tell you whether people tried a tool. "
+               "These four questions tell you whether the work changed.")
+
+    for uc_name in shortlisted_cases:
+        piloted_key = f"piloted_{uc_name}"
+        sn, sl = uc_stages.get(uc_name, (0, "Not started"))
+        color = stage_colors.get(sn, GRAY) if sn > 0 else GRAY
+        stage_badge = f" · {sn} {sl}" if sn > 0 else ""
+        with st.expander(f"{uc_name}{stage_badge}", expanded=False):
+            piloted = st.checkbox("Piloted", key=piloted_key, value=piloted_state.get(uc_name, False))
             piloted_state[uc_name] = piloted
-
             if piloted:
-                # Question tabs
                 q_tabs = st.tabs([f"Q{i+1}" for i in range(len(ADOPTION_QUESTIONS))])
                 uc_answers = {}
                 for i, q in enumerate(ADOPTION_QUESTIONS):
@@ -484,95 +609,6 @@ else:
                             for bullet in q["how_to_find"]:
                                 st.markdown(f"- {bullet}")
                 answers_state[uc_name] = uc_answers
-            else:
-                answers_state[uc_name] = {}
-
-            st.markdown("---")
-
-    with right_col:
-        # --- Adoption Ladder ---
-        stage_labels = {4: "Redesigned", 3: "Embedded", 2: "Used", 1: "Tried"}
-        stage_descriptions = {
-            4: "Redesigned with the people who do the work, used every time and the value is proven.",
-            3: "The standard way of working, with an owner and early measured results.",
-            2: "Used regularly by part of the team, but the result is not yet measured or owned.",
-            1: "People have access and have tried it. The work itself has not changed.",
-        }
-        stage_colors = {4: TEAL, 3: PURPLE, 2: AMBER, 1: GRAY}
-
-        # Count use cases per stage
-        stage_counts = {4: 0, 3: 0, 2: 0, 1: 0}
-        uc_stages = {}
-        for uc_name in shortlisted_cases:
-            if piloted_state.get(uc_name, False):
-                stage_num, stage_label = adoption_stage(answers_state.get(uc_name, {}))
-            else:
-                stage_num, stage_label = 0, "Not started"
-            uc_stages[uc_name] = (stage_num, stage_label)
-            if stage_num > 0:
-                stage_counts[stage_num] += 1
-
-        st.markdown("**Adoption ladder**")
-        for stage_num in [4, 3, 2, 1]:
-            count = stage_counts[stage_num]
-            label = stage_labels[stage_num]
-            desc = stage_descriptions[stage_num]
-            color = stage_colors[stage_num]
-            border_style = f"border-left: 4px solid {color}; padding: 10px 14px; margin-bottom: 8px; background: #FAFAFA; border-radius: 4px;"
-            count_label = f"{count} use case{'s' if count != 1 else ''}"
-            st.markdown(
-                f'<div style="{border_style}">'
-                f'<span style="font-size:0.75rem;font-weight:700;color:{color};text-transform:uppercase;'
-                f'letter-spacing:0.05em;">{stage_num} &nbsp; {label}</span>'
-                f'<span style="float:right;font-size:0.78rem;color:{GRAY};">{count_label}</span>'
-                f'<div style="font-size:0.83rem;color:#64748B;margin-top:3px;">{desc}</div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # --- Steering committee view ---
-        st.markdown("**Steering committee view**")
-        if not any(piloted_state.values()):
-            st.caption("Tick 'Piloted' on a use case to start tracking it.")
-        else:
-            sc_rows = []
-            for uc_name in shortlisted_cases:
-                if not piloted_state.get(uc_name, False):
-                    continue
-                stage_num, stage_label = uc_stages[uc_name]
-                ebit_val = r["ai_ebit_per_case"].get(uc_name, 0.0)
-
-                # Next action logic
-                if stage_num == 4:
-                    next_action = "Document and scale"
-                elif stage_num == 3:
-                    next_action = "Redesign process with the team"
-                elif stage_num == 2:
-                    next_action = "Set baseline, assign owner"
-                else:
-                    next_action = "Move from occasional to consistent use"
-
-                sc_rows.append({
-                    "Use case": uc_name,
-                    "Stage": f"{stage_num} · {stage_label}",
-                    "EBIT at stake": m(ebit_val),
-                    "Next action": next_action,
-                })
-            if sc_rows:
-                st.dataframe(pd.DataFrame(sc_rows), hide_index=True, use_container_width=True)
-
-                # Copy summary
-                sc_lines = ["**Adoption Tracker — Steering Committee View**", ""]
-                for row_sc in sc_rows:
-                    sc_lines.append(
-                        f"• {row_sc['Use case']} | {row_sc['Stage']} | "
-                        f"{row_sc['EBIT at stake']} | Next: {row_sc['Next action']}"
-                    )
-                sc_text = "\n".join(sc_lines)
-                st.download_button("⬇ Download summary", sc_text,
-                                   file_name="adoption_summary.txt", mime="text/plain")
 
 # ---------------------------------------------------------------- footer
 st.divider()
