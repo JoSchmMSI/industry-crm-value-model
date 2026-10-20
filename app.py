@@ -349,7 +349,7 @@ else:
     # Bubbles
     for row_m in matrix_rows:
         ebit_m = row_m["ebit"] / 1e6
-        bubble_size = max(12, min(50, abs(ebit_m) * 18 + 12))
+        bubble_size = max(22, min(60, abs(ebit_m) * 18 + 22))
         fig2.add_trace(go.Scatter(
             x=[row_m["feasibility"]],
             y=[ebit_m],
