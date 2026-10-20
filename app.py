@@ -264,7 +264,7 @@ st.markdown(
 )
 
 if not ai:
-    st.info("Select one or more AI use cases in Section ① above to unlock the Priority Matrix.", icon="↑")
+    st.info("Select one or more AI use cases in Section ① above to unlock the Priority Matrix.", icon="ℹ️")
 else:
     st.caption("Adjust the feasibility sliders for each use case. Pre-filled defaults are illustrative — "
                "update them to reflect your actual data landscape and organisation.")
@@ -439,10 +439,10 @@ st.markdown(
 )
 
 if not ai:
-    st.info("Select AI use cases in Section ① and score them in Section ② to unlock the Adoption Tracker.", icon="↑")
+    st.info("Select AI use cases in Section ① and score them in Section ② to unlock the Adoption Tracker.", icon="ℹ️")
 elif not shortlisted_cases:
     st.info("No use cases are in the 'Start here' or 'Quick win' quadrants yet. "
-            "Adjust feasibility scores or add more use cases in Section ② to build a shortlist.", icon="↑")
+            "Adjust feasibility scores or add more use cases in Section ② to build a shortlist.", icon="ℹ️")
 else:
     st.caption(
         f"Tracking {len(shortlisted_cases)} shortlisted use case(s) from Section ②. "
