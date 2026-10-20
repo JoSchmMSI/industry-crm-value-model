@@ -51,6 +51,107 @@ AI_USE_CASES = {
         "note": "Routes and summarizes cases; frees agent time (capacity, not EBIT)"},
 }
 
+# Feasibility defaults per use case (data readiness, ease, adoption, risk) — all 1–5
+# data: is the required data available and clean?  ease: integration complexity
+# adoption: will the team actually use it?  risk: data/change/compliance risk (5 = high risk)
+# These are illustrative starting points; user adjusts in the Priority Matrix section.
+FEASIBILITY_DEFAULTS = {
+    "Technician knowledge assistant":  {"data": 3, "ease": 3, "adoption": 4, "risk": 2},
+    "Contract propensity model":       {"data": 2, "ease": 2, "adoption": 3, "risk": 3},
+    "Quote drafting assistant":        {"data": 3, "ease": 3, "adoption": 4, "risk": 2},
+    "Failure alerts from machine data":{"data": 2, "ease": 2, "adoption": 3, "risk": 3},
+    "Churn risk model":                {"data": 2, "ease": 3, "adoption": 3, "risk": 2},
+    "Price guidance in quoting":       {"data": 3, "ease": 3, "adoption": 3, "risk": 3},
+    "Billing anomaly check":           {"data": 3, "ease": 3, "adoption": 4, "risk": 2},
+    "Case triage and summaries":       {"data": 4, "ease": 4, "adoption": 3, "risk": 2},
+}
+
+# Adoption ladder: 4 questions and their answer options
+ADOPTION_QUESTIONS = [
+    {
+        "key": "redesigned",
+        "question": "Was the workflow redesigned with the people who do the work?",
+        "answers": [
+            "No, AI was added to the old process",
+            "Partly, by a central team",
+            "Yes, with the people who do it",
+        ],
+        "how_to_find": [
+            "Ask two or three people who do the work to walk you through it step by step. "
+            "Do they describe a new process, or the old one with an AI step added?",
+            "Check whether people who do the work helped design it, for example in a workshop, "
+            "a pilot group or feedback rounds.",
+            "Look for steps that were removed or merged, not only steps that were added.",
+        ],
+    },
+    {
+        "key": "consistent",
+        "question": "Is the new way used every time?",
+        "answers": [
+            "No, it is used occasionally",
+            "Sometimes, depending on the person",
+            "Yes, consistently across the team",
+        ],
+        "how_to_find": [
+            "Check usage logs or completion rates for the past 30 days.",
+            "Ask team leads whether skipping the tool is common and whether there is a workaround.",
+            "Look for whether the tool is part of the formal process checklist or SOP.",
+        ],
+    },
+    {
+        "key": "baseline",
+        "question": "Has the result moved against a baseline?",
+        "answers": [
+            "No baseline was set",
+            "Baseline set, no movement yet",
+            "Yes, a measurable result against the baseline",
+        ],
+        "how_to_find": [
+            "Ask what KPI the use case was supposed to move and whether it was measured before go-live.",
+            "Check whether there is a dashboard or report showing before vs. after.",
+            "Look for a documented target and actual result in the project or program record.",
+        ],
+    },
+    {
+        "key": "owner",
+        "question": "Does one person own the result?",
+        "answers": [
+            "No owner defined",
+            "Shared ownership across a team",
+            "Yes, one named person is accountable",
+        ],
+        "how_to_find": [
+            "Check the project record or steering committee deck for a named owner.",
+            "Ask who would be called if the KPI dropped — if the answer is unclear, there is no owner.",
+            "Look for a single name attached to the metric in any reporting.",
+        ],
+    },
+]
+
+
+def adoption_stage(answers: dict) -> tuple[int, str]:
+    """Determine adoption stage (1–4) from answers dict {question_key: answer_index (0/1/2)}.
+    Returns (stage_number, stage_label).
+    Stage 4 Redesigned: all four questions at index 2 (highest answer).
+    Stage 3 Embedded:   consistent(2) + baseline(2) + owner(2), redesigned not required.
+    Stage 2 Used:       consistent >= 1 (sometimes or always).
+    Stage 1 Tried:      piloted but none of the above.
+    """
+    if not answers:
+        return 1, "Tried"
+    r = answers.get("redesigned", 0)
+    c = answers.get("consistent", 0)
+    b = answers.get("baseline", 0)
+    o = answers.get("owner", 0)
+    if r == 2 and c == 2 and b == 2 and o == 2:
+        return 4, "Redesigned"
+    if c == 2 and b == 2 and o == 2:
+        return 3, "Embedded"
+    if c >= 1:
+        return 2, "Used"
+    return 1, "Tried"
+
+
 AI_OVERLAP_FACTOR = 0.75   # second and further AI effects on the same KPI count at 75%
 RAMP = (0.25, 0.70, 1.00)  # CRM benefit realization in years 1 to 3
 AI_RAMP = (0.0, 0.50, 1.00)  # AI starts after integration and clean data
@@ -213,8 +314,37 @@ def compute(inp: Inputs):
                 return i + (-prev / net if prev < 0 else 0.0)
         return None
 
+    # --- per-use-case EBIT breakdown (used by Priority Matrix in Section 2) ---
+    # For each AI use case, sum the EBIT it contributes across all KPIs it touches,
+    # accounting for overlap with other use cases on the same KPI.
+    # We isolate each use case by computing the marginal EBIT it adds.
+    ai_ebit_per_case = {}
+    for name in inp.ai:
+        case_effects = AI_USE_CASES[name]["effects"]
+        marginal_ebit = 0.0
+        for row in rows:
+            k = row["key"]
+            if k in case_effects:
+                # The AI part of this row is shared among all use cases affecting this KPI.
+                # Attribute proportionally by |effect size| relative to total combined effect on this KPI.
+                total_effect_on_kpi = abs(ai_kpi.get(k, 0.0))
+                if total_effect_on_kpi > 0:
+                    this_effect = abs(case_effects[k]) * scale
+                    # First use case gets full weight; others got AI_OVERLAP_FACTOR — mirror that
+                    all_effects_sorted = sorted(
+                        [abs(AI_USE_CASES[n]["effects"][k]) for n in inp.ai if k in AI_USE_CASES[n]["effects"]],
+                        reverse=True,
+                    )
+                    if len(all_effects_sorted) > 0 and all_effects_sorted[0] == this_effect:
+                        weight = this_effect / total_effect_on_kpi
+                    else:
+                        weight = (this_effect * AI_OVERLAP_FACTOR) / total_effect_on_kpi
+                    marginal_ebit += row["ai"]["ebit"] * weight
+        ai_ebit_per_case[name] = marginal_ebit
+
     return dict(rows=rows, crm_ebit=crm_ebit, ai_ebit=ai_ebit, crm_rev=crm_rev, ai_rev=ai_rev, cash=cash,
                 interest=cash * c.financing_rate, ai_run=ai_run, crm_run=inp.crm_run_cost,
                 net_runrate=net_runrate, margin_before=margin_before, margin_after=margin_after,
                 rev_base=rev_base, years=years, payback=payback(False), payback_cash=payback(True),
-                capacity_hours=capacity_hours, capacity_value=capacity_value, adoption=a, scale=scale)
+                capacity_hours=capacity_hours, capacity_value=capacity_value, adoption=a, scale=scale,
+                ai_ebit_per_case=ai_ebit_per_case)
